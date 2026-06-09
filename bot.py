@@ -33,13 +33,13 @@ MODE_MAINTENANCE = "maintenance"
 MODE_LIVE = "live"
 
 MAINTENANCE_TEXT = (
-    "� Идут технические работы.\n\n"
+    "Идут технические работы.\n\n"
     "Мы переезжаем на новый сервер. Все ваши данные и подписки сохранены.\n\n"
     "Пожалуйста, загляните чуть позже 🙏"
 )
 
 LIVE_TEXT = (
-    "�👋 Бот и сайт теперь тут!\n\n"
+    "👋 Бот и сайт теперь тут!\n\n"
     "Все ваши данные и подписки сохранены.\n\n"
     "Переходите по ссылкам ниже 👇"
 )
@@ -102,7 +102,13 @@ async def run() -> None:
                 from psycopg.rows import dict_row
                 with psycopg.connect(db_url, row_factory=dict_row) as conn:
                     with conn.cursor() as cur:
-                        cur.execute("SELECT chat_id FROM chat_users")
+                        cur.execute("""
+                            SELECT DISTINCT chat_id FROM (
+                                SELECT chat_id FROM chat_users
+                                UNION
+                                SELECT chat_id FROM chat_settings
+                            ) as combined
+                        """)
                         users = cur.fetchall()
                         
                 logger.info("Найдено %d пользователей для рассылки.", len(users))
