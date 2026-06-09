@@ -90,6 +90,43 @@ async def run() -> None:
 
     bot = Bot(token=token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     logger.info("Запуск relink-бота в режиме %r...", get_mode())
+
+    if os.environ.get("RELINK_BROADCAST") == "1" and not os.path.exists(".broadcast_done"):
+        logger.info("Запуск автоматической рассылки всем пользователям...")
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            logger.error("DATABASE_URL не указан, рассылка отменена.")
+        else:
+            try:
+                import psycopg
+                from psycopg.rows import dict_row
+                with psycopg.connect(db_url, row_factory=dict_row) as conn:
+                    with conn.cursor() as cur:
+                        cur.execute("SELECT chat_id FROM chat_users")
+                        users = cur.fetchall()
+                        
+                logger.info("Найдено %d пользователей для рассылки.", len(users))
+                success_count = 0
+                for user in users:
+                    chat_id = user["chat_id"]
+                    try:
+                        await bot.send_message(
+                            chat_id, 
+                            LIVE_TEXT, 
+                            reply_markup=LIVE_KEYBOARD, 
+                            disable_web_page_preview=True
+                        )
+                        success_count += 1
+                    except Exception as e:
+                        logger.warning("Не удалось отправить %s: %s", chat_id, e)
+                    await asyncio.sleep(0.05)
+                
+                logger.info("Рассылка завершена. Успешно: %d/%d", success_count, len(users))
+                with open(".broadcast_done", "w", encoding="utf-8") as f:
+                    f.write("Рассылка успешно выполнена!")
+            except Exception as e:
+                logger.error("Ошибка при рассылке: %s", e)
+
     await dispatcher.start_polling(bot)
 
 
